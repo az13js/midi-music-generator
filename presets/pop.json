@@ -1,1 +1,20 @@
-
+{
+    "tempo": 120,
+    "key": "C_MAJOR",
+    "melody": {
+        "strategy": "structured",
+        "velocity_curve": "arch"
+    },
+    "harmony": {
+        "progression": "pop",
+        "voicing": "close"
+    },
+    "rhythm": {
+        "pattern": "steady",
+        "swing": 0.05
+    },
+    "structure": {
+        "bars": 16,
+        "sections": ["intro", "verse", "chorus"]
+    }
+}
