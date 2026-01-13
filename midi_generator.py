@@ -10,6 +10,16 @@ from mido import Message, MidiFile, MidiTrack, MetaMessage
 import os
 from config import *
 
+def create_midi_track(track_name: str) -> tuple[MidiFile, MidiTrack]:
+    """创建带基础设置的MIDI音轨"""
+    mid = MidiFile()
+    track = MidiTrack()
+    mid.tracks.append(track)
+    track.append(MetaMessage('track_name', name=track_name, time=0))
+    tempo = int(60 * 1000000 / DEFAULT_TEMPO)
+    track.append(MetaMessage('set_tempo', tempo=tempo, time=0))
+    return mid, track
+
 def generate_random_melody(length=DEFAULT_MELODY_LENGTH, note_range=(DEFAULT_NOTE_RANGE_START, DEFAULT_NOTE_RANGE_END), output_file=DEFAULT_OUTPUT_FILE):
     """
     生成随机旋律的MIDI文件
@@ -18,19 +28,7 @@ def generate_random_melody(length=DEFAULT_MELODY_LENGTH, note_range=(DEFAULT_NOT
     :param note_range: 音符范围（MIDI音高）
     :param output_file: 输出文件名
     """
-    # 创建MIDI文件对象
-    mid = MidiFile()
-
-    # 创建一个音轨
-    track = MidiTrack()
-    mid.tracks.append(track)
-
-    # 添加标题元信息
-    track.append(MetaMessage('track_name', name='Random Melody Track', time=0))
-
-    # 添加速度设置 (BPM转换为微秒/拍)
-    tempo = int(60 * 1000000 / DEFAULT_TEMPO)  # 默认速度 120 BPM
-    track.append(MetaMessage('set_tempo', tempo=tempo, time=0))
+    mid, track = create_midi_track('Random Melody Track')
 
     # 添加一些随机音符
     for i in range(length):
@@ -62,14 +60,7 @@ def generate_chord_progression(root_note=DEFAULT_NOTE_RANGE_START, num_chords=DE
     :param num_chords: 和弦数量
     :param output_file: 输出文件名
     """
-    mid = MidiFile()
-    track = MidiTrack()
-    mid.tracks.append(track)
-
-    # 添加标题元信息
-    track.append(MetaMessage('track_name', name='Chord Progression Track', time=0))
-    tempo = int(60 * 1000000 / DEFAULT_TEMPO)  # 默认速度 120 BPM
-    track.append(MetaMessage('set_tempo', tempo=tempo, time=0))
+    mid, track = create_midi_track('Chord Progression Track')
 
     for i in range(num_chords):
         # 随机选择一个和弦类型
@@ -79,14 +70,13 @@ def generate_chord_progression(root_note=DEFAULT_NOTE_RANGE_START, num_chords=DE
         # 计算和弦音符
         notes = [root_note + offset for offset in chord_type]
 
-        # 同时播放所有和弦音符
+        # 所有note_on同时发出（time=0）
         for note in notes:
             track.append(Message('note_on', channel=MELODY_CHANNEL, note=note, velocity=64, time=0))
 
-        # 等待一段时间后停止所有和弦音符
-        # 最后一个音符的time值指定整个和弦的持续时间
-        for j, note in enumerate(notes):
-            time = 480 if j == len(notes) - 1 else 0  # 只有最后一个音符有时间延迟
+        # 只有第一个note_off有延迟，其余time=0
+        for i, note in enumerate(notes):
+            time = 480 if i == 0 else 0  # 第一个off消息决定和弦时长
             track.append(Message('note_off', channel=MELODY_CHANNEL, note=note, velocity=64, time=time))
 
         # 随机调整下次循环的根音
@@ -105,14 +95,7 @@ def generate_simple_rhythm(output_file=DEFAULT_OUTPUT_FILE):
 
     :param output_file: 输出文件名
     """
-    mid = MidiFile()
-    track = MidiTrack()
-    mid.tracks.append(track)
-
-    # 添加标题元信息
-    track.append(MetaMessage('track_name', name='Simple Rhythm Track', time=0))
-    tempo = int(60 * 1000000 / DEFAULT_TEMPO)  # 默认速度 120 BPM
-    track.append(MetaMessage('set_tempo', tempo=tempo, time=0))
+    mid, track = create_midi_track('Simple Rhythm Track')
 
     # 鼓组音符定义 (MIDI标准鼓组)
     kick_drum = 36  # 底鼓
@@ -189,11 +172,19 @@ def main():
         help=f'和弦数量 (仅用于和弦模式, 默认: {DEFAULT_CHORD_COUNT})'
     )
 
+    parser.add_argument('--seed', type=int, help='随机种子')
     args = parser.parse_args()
+    if args.seed is not None:
+        random.seed(args.seed)
 
     # 确保输出文件以.mid结尾
     if not args.output_file.endswith('.mid'):
         args.output_file += '.mid'
+
+    if args.length <= 0:
+        parser.error("音符数量必须为正整数")
+    if args.note_range_start >= args.note_range_end:
+        parser.error("音符范围起始值必须小于结束值")
 
     # 根据选择的模式生成MIDI文件
     if args.mode == 'melody':
@@ -211,6 +202,11 @@ def main():
     elif args.mode == 'rhythm':
         generate_simple_rhythm(output_file=args.output_file)
 
+    print(f"生成配置:")
+    print(f"  - 模式: {args.mode}")
+    print(f"  - 输出文件: {args.output_file}")
+    if args.mode == 'melody':
+        print(f"  - 音符数量: {args.length}")
 
 if __name__ == "__main__":
     main()
