@@ -3,21 +3,14 @@ from .harmony import *
 from .rhythm import *
 
 __all__ = [
-    # 从 melody 模块导出的项
+    # 从 melody 模块导出的项 (已修正名称)
     "MelodyGenerator",
-    "Note",
-    "Scale",
-    "Key",
-    "generate_melody",
-    "create_progression",
-    "get_note_from_degree",
     "MelodyStrategy",
     "RandomWalkStrategy",
-    "MarkovChainStrategy",
-    "PhraseBasedStrategy",
-    "NeuralNetStyleStrategy",
+    "PatternBasedStrategy",
+    "NeuralStyleStrategy",
     "GeneticOptimizationStrategy",
-    "MCTSCompositionStrategy",
+    "MonteCarloTreeSearchStrategy",
     "create_melody_from_strategy",
     "optimize_melody_for_chords",
 

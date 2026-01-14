@@ -7,7 +7,7 @@ from typing import List, Tuple, Union
 # 导入核心模块
 from core.theory import Key, get_scale_notes, get_diatonic_chord, ChordQuality
 # 导入生成器
-from generators import MelodyGenerator, HarmonyGenerator
+from generators import MelodyGenerator, HarmonyGenerator, RhythmGenerator, RhythmPattern
 # 导入编曲器
 from composers import SimpleArranger
 
@@ -103,21 +103,54 @@ def main():
         strategy_name = melody_cfg.get("strategy", "structured")
         print(f"Generating Melody with strategy: {strategy_name}")
 
-        # 实例化旋律生成器
-        melody_gen = MelodyGenerator(
-            strategy_name=strategy_name,
-            key=key
-        )
-        # 手动调用生成逻辑(注意：这里传入length 或bars 相关参数)
-        # 假设每小节4拍，音符平均时长0.5拍估算长度，或者直接填满
-        length = bars * 4 * 2  # 生成足够多的音符
+        # 1. 生成旋律音高
+        melody_gen = MelodyGenerator(strategy_name=strategy_name, key=key)
+        # 估算生成足够的音符数量
+        length = bars * 4 * 2
+        melody_pitches = melody_gen.generate(length=length)
 
+        # 2. 生成节奏 (新增逻辑)
+        rhythm_cfg = preset.get("rhythm", {})
+        rhythm_pattern_str = rhythm_cfg.get("pattern", "steady")
+
+        # 映射预设字符串到 RhythmPattern 枚举
+        pattern_map = {
+            "steady": RhythmPattern.STEADY_QUARTERS,
+            "rock_beat": RhythmPattern.ROCK_BEAT,
+            "swing_eighths": RhythmPattern.SWING_EIGHTHS,
+            # 可根据需要添加更多映射
+        }
+
+        target_pattern = pattern_map.get(rhythm_pattern_str, RhythmPattern.STEADY_QUARTERS)
+
+        # 实例化节奏生成器
+        # 如果有 style (如 jazz, rock)，可以使用 GrooveRhythmStrategy
+        rhythm_style = rhythm_cfg.get("style")
+        if rhythm_style:
+            rhythm_gen = RhythmGenerator("groove", style=rhythm_style)
+        else:
+            rhythm_gen = RhythmGenerator("pattern", pattern=target_pattern)
+
+        # 生成节奏时值列表
+        durations = rhythm_gen.generate(num_bars=bars)
+
+        # 3. 将音高与时值合并
+        # 为了填满整个节奏序列，我们使用 itertools.cycle 来循环使用旋律音高
+        import itertools
+        melody_with_timing = []
+        # 使用 itertools.cycle 无限循环旋律音高，然后切片匹配节奏长度
+        # 这样可以保证节奏完全由节奏生成器控制，旋律音高循环使用
+        melody_notes_iter = itertools.cycle(melody_pitches)
+
+        for dur in durations:
+            note = next(melody_notes_iter)
+            melody_with_timing.append((note, dur))
+
+        # 4. 写入音轨
         try:
-            melody_notes = melody_gen.generate(length=length)
-            # 使用适配器包装数据
             arranger.add_track(
                 name="Melody",
-                generator=PrecomputedGenerator(melody_notes),
+                generator=PrecomputedGenerator(melody_with_timing),
                 channel=0
             )
         except Exception as e:
