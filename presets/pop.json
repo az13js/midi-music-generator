@@ -6,7 +6,7 @@
         "velocity_curve": "arch"
     },
     "harmony": {
-        "progression": "pop",
+        "progression": "pop_basic",
         "voicing": "close"
     },
     "rhythm": {
