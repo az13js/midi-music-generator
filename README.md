@@ -1,111 +1,103 @@
-# MIDI Music Generator
+TODO README目前只是开发者随便记录的内容……
 
-一个简单的命令行程序，用于生成MIDI音乐文件。该程序支持生成随机旋律、和弦进行和简单节拍。
+## 一、系统架构设计
 
-## 功能
-
-- 生成随机旋律
-- 生成和弦进行
-- 生成简单节拍模式
-
-## 依赖
-
-- Python 3.6+
-- [mido](https://mido.readthedocs.io/) - MIDI处理库
-
-## 安装
-
-1. 克隆或下载此项目
-2. 安装依赖库：
-
-```bash
-pip install -r requirements.txt
+```
+midi_generator/
+├── core/                    # 音乐理论引擎（不可变规则）
+│   ├── theory.py           # 音阶、和弦、调性
+│   ├── rhythm.py           # 节奏型、节拍
+│   └── structure.py        # 乐句、段落、曲式
+├── generators/              # 生成算法（可切换策略）
+│   ├── __init__.py
+│   ├── melody.py           # 旋律生成器
+│   ├── harmony.py          # 和声生成器
+│   └── rhythm.py           # 节奏生成器
+├── composers/               # 编曲器（组合多轨）
+│   ├── __init__.py
+│   └── simple_arranger.py  # 基础编曲逻辑
+├── presets/                 # 风格预设（用户可扩展）
+│   ├── pop.json
+│   ├── jazz.json
+│   └── rock.json
+├── output/                  # 输出适配器
+│   ├── midi_writer.py      # MIDI格式写入
+│   └── __init__.py
+├── config.py               # 全局配置
+└── main.py                 # CLI入口
 ```
 
-或者直接安装mido：
+---
 
-```bash
-pip install mido
+## 二、核心层设计（音乐理论引擎）
+
+### `core/theory.py` - 不可变的音乐规则
+### `core/structure.py` - 乐句构造器
+
+## 三、生成层设计（插件化策略）
+
+### `generators/melody.py` - 策略模式
+
+### `generators/harmony.py` - 和声生成器
+## 四、编曲层（多轨组合）
+
+### `composers/simple_arranger.py`
+## 五、预设系统（JSON配置）
+
+### `presets/pop.json`
+```json
+{
+    "tempo": 120,
+    "key": "C_MAJOR",
+    "melody": {
+        "strategy": "structured",
+        "velocity_curve": "arch"
+    },
+    "harmony": {
+        "progression": "pop",
+        "voicing": "close"
+    },
+    "rhythm": {
+        "pattern": "steady",
+        "swing": 0.05
+    },
+    "structure": {
+        "bars": 16,
+        "sections": ["intro", "verse", "chorus"]
+    }
+}
 ```
 
-
-## 使用方法
-
-### 生成随机旋律（默认）
-
-```bash
-python midi_generator.py [输出文件名]
+**加载预设**：
+```python
+# main.py
+def load_preset(name: str) -> dict:
+    with open(f"presets/{name}.json") as f:
+        return json.load(f)
 ```
 
-例如：
-```bash
-python midi_generator.py my_melody.mid
-```
+---
 
-### 指定生成模式
+## 六、CLI入口（简化交互）
 
-使用 `--mode` 参数指定生成模式：
+### `main.py` - 关注编排流程，而非细节
+## 七、系统优势
 
-- `melody` - 生成随机旋律（默认）
-- `chord` - 生成和弦进行
-- `rhythm` - 生成节拍模式
+| 维度 | 旧脚本 | 新系统 |
+|------|--------|--------|
+| ** 扩展性 ** | 修改源码 | 添加JSON预设或继承`Strategy`类 |
+| ** 可测试性** | 几乎无法测试 | 每个Generator可独立单元测试 |
+| **复用性** | 复制粘贴 | 通过Composer组合不同Generator |
+| **音乐性** | 随机噪音 | 基于理论模型，支持复杂曲式 |
+| **协作 ** | 单人维护 | 多人可分别开发Generator和Preset |
 
-#### 旋律模式
+---
 
-```bash
-python midi_generator.py --mode melody --length 20 --note-range-start 50 --note-range-end 80 output.mid
-```
+## 八、迁移路径（渐进式重构）
 
-参数：
-- `--length` - 音符数量（默认：16）
-- `--note-range-start` - 音符范围起始值（默认：60，C4）
-- `--note-range-end` - 音符范围结束值（默认：72，C5）
+1. ** 阶段1 **（1天）：建立`core/theory.py`，替换硬编码音阶
+2. **阶段2**（2天）：抽取`generators/melody.py`，保留旧逻辑作为`LegacyStrategy`
+3. **阶段3**（1天）：实现`SimpleArranger`，支持多轨
+4. **阶段4**（持续）：逐步迁移预设到JSON，新增策略
 
-#### 和弦模式
-
-```bash
-python midi_generator.py --mode chord --chords 10 --note-range-start 55 output.mid
-```
-
-参数：
-- `--chords` - 和弦数量（默认：8）
-- `--note-range-start` - 起始根音符（默认：60，C4）
-
-#### 节拍模式
-
-```bash
-python midi_generator.py --mode rhythm output.mid
-```
-
-## 示例
-
-生成一个名为 "example.mid" 的随机旋律文件：
-```bash
-python midi_generator.py example.mid
-```
-
-生成一个名为 "chords.mid" 的和弦进行文件：
-```bash
-python midi_generator.py --mode chord chords.mid
-```
-
-生成一个名为 "drums.mid" 的节拍文件：
-```bash
-python midi_generator.py --mode rhythm drums.mid
-```
-
-## 说明
-
-- MIDI音符编号：C4 = 60, C#4/D♭4 = 61, D4 = 62, ..., C5 = 72
-- 生成的MIDI文件可以使用任何支持MIDI的播放器或音乐软件打开
-- 在节拍模式中，使用第10通道（通道9）播放鼓组声音
-
-## 技术细节
-
-- 使用 [mido](https://mido.readthedocs.io/) 库处理MIDI文件
-- 支持标准MIDI文件格式
-- 默认速度为120 BPM
-
-## 许可证
-
-本项目使用 MIT 许可证 - 详见 [LICENSE](./LICENSE) 文件。
+**结论**：系统化设计的核心价值在于** 将音乐知识（Theory）与生成算法（Strategy）分离 **。你可以让音乐人写`presets/pop.json`，让程序员实现`generators/ai_melody.py`，两者通过配置组合，这才是可持续的架构。

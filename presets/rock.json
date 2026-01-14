@@ -1,0 +1,30 @@
+{
+    "tempo": 130,
+    "key": "E_MAJOR",
+    "melody": {
+        "strategy": "structured",
+        "velocity_curve": "flat",
+        "variation": 0.5
+    },
+    "harmony": {
+        "progression": "rock_basic",
+        "voicing": "close",
+        "power_chords": true
+    },
+    "rhythm": {
+        "pattern": "rock_beat",
+        "backbeat": true,
+        "accent": "downbeat"
+    },
+    "structure": {
+        "bars": 16,
+        "sections": ["intro", "verse", "chorus"],
+        "form": "ABAB"
+    },
+    "arrangement": {
+        "include_bass": true,
+        "include_guitar": true,
+        "include_drums": true,
+        "distortion": true
+    }
+}

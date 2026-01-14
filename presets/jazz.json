@@ -1,0 +1,31 @@
+{
+    "tempo": 140,
+    "key": "F_MAJOR",
+    "melody": {
+        "strategy": "random",
+        "velocity_curve": "rising",
+        "use_chord_tones": true,
+        "chromatic_probability": 0.15
+    },
+    "harmony": {
+        "progression": "jazz_251",
+        "voicing": "open",
+        "extensions": true,
+        "apply_voice_leading": true
+    },
+    "rhythm": {
+        "pattern": "swing_eighths",
+        "swing": 0.67,
+        "syncopation": 0.3
+    },
+    "structure": {
+        "bars": 32,
+        "sections": ["head", "solo", "head"],
+        "form": "AABA"
+    },
+    "arrangement": {
+        "include_bass": true,
+        "include_piano": true,
+        "include_drums": true
+    }
+}
