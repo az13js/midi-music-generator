@@ -571,19 +571,3 @@ class HarmonyGenerator_Legacy:
 HarmonyGenerator = HarmonyGenerator
 
 # 注意：__all__ 现在由包的 __init__.py 文件统一管理
-__all__ = [
-    # 策略类
-    "HarmonyStrategy",
-    "ProgressionBasedStrategy",
-    "DiatonicStrategy",
-    "FunctionalStrategy",
-    "HybridHarmonyStrategy",
-    # 工厂类
-    "HarmonyGenerator",
-    # 便捷函数
-    "create_harmony",
-    "create_progression_harmony",
-    "create_style_harmony",
-    # 向后兼容
-    "HarmonyGenerator_Legacy"
-]
