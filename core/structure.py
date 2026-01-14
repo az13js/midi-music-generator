@@ -1,3 +1,5 @@
+from core.theory import Key
+
 class PhraseBuilder:
     def __init__(self, length=16):
         self.length = length
@@ -16,7 +18,9 @@ class PhraseBuilder:
 
     def add_cadence(self, key: Key):
         """添加终止式（落回主音）"""
-        self.pieces.extend([key.value[0], key.value[0]])
+        # 修改前：self.pieces.extend([key.value[0], key.value[0]])
+        # 修改后：使用 key.tonic 获取整数类型的MIDI音高
+        self.pieces.extend([key.tonic, key.tonic])
         return self
 
     def build(self):
