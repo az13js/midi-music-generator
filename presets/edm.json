@@ -1,0 +1,22 @@
+{
+    "tempo": 128,
+    "key": "C_MINOR",
+    "melody": {
+        "strategy": "random",
+        "velocity_curve": "flat"
+    },
+    "harmony": {
+        "progression": "modern_trending",
+        "voicing": "close"
+    },
+    "rhythm": {
+        "pattern": "techno"
+    },
+    "structure": {
+        "bars": 32,
+        "sections": ["buildup", "drop"]
+    },
+    "arrangement": {
+        "include_bass": true
+    }
+}

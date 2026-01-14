@@ -1,0 +1,19 @@
+{
+    "tempo": 120,
+    "key": "F_MAJOR",
+    "melody": {
+        "strategy": "structured",
+        "velocity_curve": "arch"
+    },
+    "harmony": {
+        "progression": "jazz_rhythm",
+        "voicing": "open",
+        "apply_voice_leading": true
+    },
+    "rhythm": {
+        "pattern": "bossa_nova"
+    },
+    "structure": {
+        "bars": 24
+    }
+}

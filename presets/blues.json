@@ -1,0 +1,24 @@
+{
+    "tempo": 110,
+    "key": "E_MAJOR",
+    "melody": {
+        "strategy": "random",
+        "velocity_curve": "flat",
+        "chromatic_probability": 0.2
+    },
+    "harmony": {
+        "progression": "blues_basic",
+        "voicing": "close"
+    },
+    "rhythm": {
+        "pattern": "syncopated_16",
+        "swing": 0.1
+    },
+    "structure": {
+        "bars": 12,
+        "sections": ["verse", "chorus"]
+    },
+    "arrangement": {
+        "include_bass": true
+    }
+}

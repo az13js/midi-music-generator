@@ -1,0 +1,18 @@
+{
+    "tempo": 80,
+    "key": "C_MAJOR",
+    "melody": {
+        "strategy": "structured",
+        "velocity_curve": "arch"
+    },
+    "harmony": {
+        "progression": "classical_plagal",
+        "voicing": "open"
+    },
+    "rhythm": {
+        "pattern": "steady_quarters"
+    },
+    "structure": {
+        "bars": 8
+    }
+}

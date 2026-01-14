@@ -1,0 +1,18 @@
+{
+    "tempo": 90,
+    "key": "G_MAJOR",
+    "melody": {
+        "strategy": "structured",
+        "velocity_curve": "rising"
+    },
+    "harmony": {
+        "progression": "pop_basic",
+        "voicing": "close"
+    },
+    "rhythm": {
+        "pattern": "steady_eighths"
+    },
+    "structure": {
+        "bars": 16
+    }
+}

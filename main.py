@@ -118,7 +118,11 @@ def main():
             "steady": RhythmPattern.STEADY_QUARTERS,
             "rock_beat": RhythmPattern.ROCK_BEAT,
             "swing_eighths": RhythmPattern.SWING_EIGHTHS,
-            # 可根据需要添加更多映射
+            "syncopated_16": RhythmPattern.SYNCOPATED_16,
+            "techno": RhythmPattern.TECHNO,
+            "bossa_nova": RhythmPattern.BOSSA_NOVA,
+            "steady_eighths": RhythmPattern.STEADY_EIGHTHS,
+            "steady_quarters": RhythmPattern.STEADY_QUARTERS,
         }
 
         target_pattern = pattern_map.get(rhythm_pattern_str, RhythmPattern.STEADY_QUARTERS)
