@@ -366,3 +366,6 @@ def optimize_melody_for_chords(melody: List[int], chords: List[Chord], key: Key,
     """优化旋律使其更适合指定的和弦进行"""
     generator = GeneticOptimizationStrategy(key, population_size=100, generations=iterations)
     return generator.generate(key, len(melody), custom_chords=chords)
+
+
+# 注意：__all__ 现在由包的 __init__.py 文件统一管理

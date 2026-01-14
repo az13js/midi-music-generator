@@ -553,3 +553,8 @@ def get_rhythm_stats(durations: List[float]) -> Dict[str, float]:
         "longest_duration": max(durations),
         "unique_durations": len(set(durations))
     }
+
+
+# ==================== 模块导出 ====================
+
+# 注意：__all__ 现在由包的 __init__.py 文件统一管理
