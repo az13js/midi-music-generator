@@ -62,6 +62,9 @@ python main.py --preset edm --output track.mid --log-file generation.log
 - **波萨诺瓦**: `bossa.json`
 - **民谣**: `folk.json`
 - **电子舞曲**: `edm.json` (使用遗传算法生成旋律)
+> 💡 **想要创建自己的音乐风格？**
+> 
+> 查看 **[预设编写指南](PRESETS_GUIDE.md)** 了解如何通过 JSON 配置文件定制旋律策略、和弦进行、节奏模式和乐器音色。
 ## 📁 项目架构
 项目采用分层架构，各司其职，确保代码的高内聚低耦合。
 ```
