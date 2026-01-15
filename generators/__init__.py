@@ -11,6 +11,7 @@ __all__ = [
     "NeuralStyleStrategy",
     "GeneticOptimizationStrategy",
     "MonteCarloTreeSearchStrategy",
+    "MotivicDevelopmentStrategy",
     "create_melody_from_strategy",
     "optimize_melody_for_chords",
 

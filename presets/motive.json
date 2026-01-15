@@ -1,0 +1,18 @@
+{
+    "tempo": 90,
+    "key": "C_MAJOR",
+    "melody": {
+        "strategy": "motivic",
+        "motif_length": 4,
+        "velocity_curve": "arch"
+    },
+    "harmony": {
+        "progression": "classical_authentic"
+    },
+    "rhythm": {
+        "pattern": "steady_quarters"
+    },
+    "structure": {
+        "bars": 16
+    }
+}

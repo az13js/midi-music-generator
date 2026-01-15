@@ -328,6 +328,173 @@ class MonteCarloTreeSearchStrategy(MelodyStrategy):
                 best_melody = current_melody
         return best_melody
 
+class MotivicDevelopmentStrategy(MelodyStrategy):
+    """动机发展策略 - 基于一个短小动机发展完整旋律"""
+
+    def __init__(self, key: Key, motif_length: int = 4):
+        super().__init__(key)
+        self.motif_length = motif_length
+        self.motif = None
+
+        # 预定义的发展手法序列（不同乐句结构）
+        self.development_patterns = [
+            # AABA 结构
+            ["repetition", "sequence_up", "repetition", "inversion"],
+            # 对比结构
+            ["repetition", "contrary_motion", "sequence_up", "repetition"],
+            # 简单发展
+            ["repetition", "inversion", "retrograde", "repetition"],
+            # 复杂发展
+            ["sequence_up", "expansion", "contrary_motion", "repetition"],
+        ]
+
+    def _create_initial_motif(self) -> List[int]:
+        """创建初始动机（3-5个音符）"""
+        tonic = self.scale_notes[0]
+        dominant = self.scale_notes[4] if len(self.scale_notes) > 4 else tonic
+
+        start_note = random.choice([tonic, dominant,
+                                   random.choice(self.scale_notes[:5])])
+
+        motif = [start_note]
+        current_note = start_note
+
+        for _ in range(self.motif_length - 1):
+            # 加权选择：优先小跳（1-2度），其次中跳（3-4度），最后大跳
+            neighbors = sorted(self.scale_notes,
+                              key=lambda n: (abs(n - current_note), random.random()))
+
+            weights = []
+            for n in neighbors[:10]:
+                interval = abs(n - current_note)
+                if interval <= 2:
+                    weights.append(0.5)
+                elif interval <= 4:
+                    weights.append(0.3)
+                else:
+                    weights.append(0.1)
+
+            total = sum(weights[:10])
+            weights = [w/total for w in weights[:10]]
+            current_note = random.choices(neighbors[:10], weights=weights)[0]
+            motif.append(current_note)
+
+        return motif
+
+    def _inversion(self, motif: List[int], axis_note: Optional[int] = None) -> List[int]:
+        """倒影：以轴心音为基准进行镜像对称"""
+        if axis_note is None:
+            axis_note = motif[0]
+
+        inverted = []
+        for note in motif:
+            interval = note - axis_note
+            inverted_note = axis_note - interval
+            # 找到音阶中最接近的音
+            closest = min(self.scale_notes, key=lambda n: abs(n - inverted_note))
+            inverted.append(closest)
+        return inverted
+
+    def _sequence(self, motif: List[int], direction: int = 1, steps: int = 1) -> List[int]:
+        """模进：整体向上或向下移动"""
+        interval_steps = steps * 2 if direction > 0 else -steps * 2
+        sequenced = []
+        for note in motif:
+            new_note = note + interval_steps
+            closest = min(self.scale_notes, key=lambda n: abs(n - new_note))
+            sequenced.append(closest)
+        return sequenced
+
+    def _contrary_motion(self, motif: List[int]) -> List[int]:
+        """反向进行：改变运动方向"""
+        direction = 1 if motif[-1] >= motif[0] else -1
+        contrary = [motif[0]]
+
+        for _ in range(len(motif) - 1):
+            interval = random.choice([1, 2, 3]) * -direction
+            next_note = contrary[-1] + interval
+            closest = min(self.scale_notes, key=lambda n: abs(n - next_note))
+            contrary.append(closest)
+
+        return contrary
+
+    def _expansion(self, motif: List[int]) -> List[int]:
+        """扩充：在音程大处插入经过音"""
+        expanded = []
+        for i, note in enumerate(motif):
+            expanded.append(note)
+            if i < len(motif) - 1:
+                next_note = motif[i + 1]
+                interval = abs(next_note - note)
+                if interval > 3:
+                    between = [n for n in self.scale_notes
+                              if min(note, next_note) < n < max(note, next_note)]
+                    if between:
+                        expanded.append(random.choice(between))
+        return expanded
+
+    def _ornamentation(self, motif: List[int]) -> List[int]:
+        """装饰：添加装饰音"""
+        ornamented = []
+        for note in motif:
+            if random.random() < 0.3:
+                neighbors = [n for n in self.scale_notes
+                           if abs(n - note) <= 2 and n != note]
+                if neighbors:
+                    ornamented.extend([random.choice(neighbors), note])
+                else:
+                    ornamented.append(note)
+            else:
+                ornamented.append(note)
+        return ornamented
+
+    def _develop_motif(self, motif: List[int], dev_type: str) -> List[int]:
+        """应用发展手法"""
+        methods = {
+            "repetition": lambda m: m.copy(),
+            "retrograde": lambda m: m[::-1],
+            "inversion": self._inversion,
+            "sequence_up": lambda m: self._sequence(m, 1),
+            "sequence_down": lambda m: self._sequence(m, -1),
+            "contrary_motion": self._contrary_motion,
+            "expansion": self._expansion,
+            "contraction": lambda m: m[::max(1, len(m)//2)],
+            "ornamentation": self._ornamentation,
+        }
+        return methods.get(dev_type, lambda m: m)(motif)
+
+    def generate(self, key: Key, length: int, **kwargs) -> List[int]:
+        """生成完整的动机发展旋律"""
+        if self.motif is None:
+            self.motif = self._create_initial_motif()
+
+        pattern = kwargs.get('development_pattern') or random.choice(self.development_patterns)
+        melody = []
+        current_motif = self.motif
+
+        while len(melody) < length:
+            for dev_type in pattern:
+                developed = self._develop_motif(current_motif, dev_type)
+                melody.extend(developed)
+                current_motif = developed
+
+                # 微调最后一个音以增加自然感
+                if len(developed) > 0 and random.random() < 0.2:
+                    neighbors = [n for n in self.scale_notes
+                               if abs(n - developed[-1]) <= 3]
+                    if neighbors:
+                        melody[-1] = random.choice(neighbors)
+
+                if len(melody) >= length:
+                    break
+
+        # 添加终止式（落回主音）
+        remaining = length - len(melody)
+        tonic = self.scale_notes[0]
+        melody.extend([tonic] * remaining)
+
+        return melody[:length]
+
 class MelodyGenerator:
     """旋律生成器工厂类"""
 
@@ -336,7 +503,8 @@ class MelodyGenerator:
         "structured": PatternBasedStrategy,
         "neural": NeuralStyleStrategy,
         "genetic": GeneticOptimizationStrategy,
-        "mcts": MonteCarloTreeSearchStrategy
+        "mcts": MonteCarloTreeSearchStrategy,
+        "motivic": MotivicDevelopmentStrategy,
     }
 
     def __init__(self, strategy_name: str, key: Key, **strategy_params):
