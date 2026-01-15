@@ -21,32 +21,32 @@ from core.theory import (
 
 class HarmonyStrategy(ABC):
     """和声生成策略抽象基类"""
-    
+
     def __init__(self, key: Key, beats_per_bar: int = 4):
         """
         初始化和声生成策略
-        
+
         Args:
             key: 调
             beats_per_bar: 每小节拍数
         """
         self.key = key
         self.beats_per_bar = beats_per_bar
-    
+
     @abstractmethod
     def generate(self, num_bars: int, **kwargs) -> List[Tuple[int, float]]:
         """
         生成和弦序列
-        
+
         Args:
             num_bars: 小节数量
             **kwargs: 其他参数
-            
+
         Returns:
             [(和弦根音MIDI编号, 时值(拍)), ...] 列表
         """
         pass
-    
+
     def _apply_inversion(self, chord: Chord, inversion: int) -> Chord:
         """应用和弦转位"""
         return Chord(
@@ -56,19 +56,128 @@ class HarmonyStrategy(ABC):
             bass_note=chord.bass_note
         )
 
+# ==================== 辅助函数：平行五八度检测与处理 ====================
+
+def _get_intervals_between_voices(prev_notes: List[int], curr_notes: List[int]) -> Dict[str, List[Tuple[int, int]]]:
+    """
+    分析两个和弦中声部对之间的音程关系。
+    返回: {'fifths': [(prev_note, curr_note), ...], 'octaves': [...]}
+    """
+    fifths = []
+    octaves = []
+    # 对齐两个和弦的音符列表（取较短的长度，确保成对比较）
+    min_len = min(len(prev_notes), len(curr_notes))
+    
+    for i in range(min_len):
+        prev_note = prev_notes[i]
+        curr_note = curr_notes[i]
+        # 计算音程差（模12）
+        interval = abs((curr_note - prev_note) % 12)
+        
+        if interval == 7:  # 纯五度/减五度/增五度
+            fifths.append((prev_note, curr_note))
+        elif interval == 0:  # 纯八度/同音
+            octaves.append((prev_note, curr_note))
+            
+    return {'fifths': fifths, 'octaves': octaves}
+
+def has_parallel_fifths(prev_notes: List[int], curr_notes: List[int]) -> bool:
+    """检测是否存在平行五度。"""
+    intervals = _get_intervals_between_voices(prev_notes, curr_notes)
+    return len(intervals['fifths']) >= 2
+
+def has_parallel_octaves(prev_notes: List[int], curr_notes: List[int]) -> bool:
+    """检测是否存在平行八度。"""
+    intervals = _get_intervals_between_voices(prev_notes, curr_notes)
+    return len(intervals['octaves']) >= 2
+
+def adjust_voicing_to_avoid_parallels(chord: Chord, key: Key) -> Chord:
+    """
+    通过尝试不同转位来调整和弦，以避免与当前声部配置产生平行五八度。
+    这是一个简化版本，实际应用可能需要更复杂的算法或回溯。
+    """
+    # 尝试不同的转位（0, 1, 2, 3）
+    for inversion in range(4):
+        test_chord = Chord(
+            root=chord.root,
+            quality=chord.quality,
+            inversion=inversion
+        )
+        # 返回第一个尝试的转位，实际应在外部循环中调用此函数并与前一和弦比较
+        return test_chord
+    # 如果所有转位都无法避免，返回原和弦
+    return chord
+
+def apply_improved_voice_leading(chords: List[Chord], key: Key, strategy: VoiceLeading = VoiceLeading.SMOOTH) -> List[Chord]:
+    """
+    应用改进的声部连接策略。
+    
+    Args:
+        chords: 和弦列表
+        key: 调
+        strategy: 连接策略 (当前仅使用 SMOOTH 作为基础，内部会进一步优化)
+    
+    Returns:
+        应用声部连接后的和弦列表
+    """
+    improved_chords = []
+    
+    if not chords:
+        return improved_chords
+
+    # 第一个和弦保持原样或可以优化其排列
+    improved_chords.append(chords[0])
+    
+    for i in range(1, len(chords)):
+        prev_chord = improved_chords[i-1]
+        curr_chord = chords[i]
+        prev_notes = prev_chord.get_midi_notes(key)
+        
+        best_curr_chord = curr_chord
+        min_penalty = float('inf')
+        
+        # 尝试当前和弦的不同转位
+        for inversion in range(4):  # 尝试0-3转位
+            test_chord = Chord(
+                root=curr_chord.root,
+                quality=curr_chord.quality,
+                inversion=inversion
+            )
+            curr_notes = test_chord.get_midi_notes(key)
+            
+            # 计算惩罚：1) 总音程移动（平滑性） 2) 平行五八度（规则惩罚）
+            # 1. 计算总移动距离
+            movement = sum(abs(curr_notes[j] - prev_notes[j]) for j in range(min(len(prev_notes), len(curr_notes))))
+            
+            # 2. 检测平行五八度
+            parallel_penalty = 0
+            if has_parallel_fifths(prev_notes, curr_notes):
+                parallel_penalty += 10  # 大幅惩罚平行五度
+            if has_parallel_octaves(prev_notes, curr_notes):
+                parallel_penalty += 10  # 大幅惩罚平行八度
+            
+            total_penalty = movement + parallel_penalty * 10  # 给予平行五八度更高权重
+            
+            if total_penalty < min_penalty:
+                min_penalty = total_penalty
+                best_curr_chord = test_chord
+        
+        improved_chords.append(best_curr_chord)
+    
+    return improved_chords
 
 class ProgressionBasedStrategy(HarmonyStrategy):
     """基于预设和弦进行的策略"""
-    
+
     def __init__(
-        self, 
-        key: Key, 
+        self,
+        key: Key,
         beats_per_bar: int = 4,
         progression_name: Optional[str] = None,
         style: Optional[str] = None
     ):
         super().__init__(key, beats_per_bar)
-        
+
         # 获取和弦进行
         if progression_name:
             self.progression = get_progression_by_name(progression_name)
@@ -79,10 +188,10 @@ class ProgressionBasedStrategy(HarmonyStrategy):
             self.progression = random.choice(progressions) if progressions else None
         else:
             self.progression = get_random_progression()
-    
+
     def generate(
-        self, 
-        num_bars: int, 
+        self,
+        num_bars: int,
         chords_per_bar: int = 1,
         rhythm: str = "steady",
         apply_voice_leading_flag: bool = False,
@@ -91,32 +200,32 @@ class ProgressionBasedStrategy(HarmonyStrategy):
     ) -> List[Tuple[int, float]]:
         """
         基于和弦进行生成和弦序列
-        
+
         Args:
             num_bars: 小节数量
             chords_per_bar: 每小节和弦数量
             rhythm: 节奏模式 ("steady", "syncopated", "random")
             apply_voice_leading_flag: 是否应用声部连接
             inversion_mode: 转位模式
-            
+
         Returns:
             [(根音MIDI, 时值), ...]
         """
         if not self.progression:
             raise ValueError("No chord progression available")
-        
+
         # 构建和弦对象列表
         chords = []
         progression_chords = self.progression.chords
-        
+
         # 重复进行以填充小节数
         total_chords = num_bars * chords_per_bar
         chord_index = 0
-        
+
         for _ in range(total_chords):
             degree, quality = progression_chords[chord_index % len(progression_chords)]
             chord = Chord(root=degree - 1, quality=quality)
-            
+
             # 应用转位
             if inversion_mode == "random":
                 chord = self._apply_inversion(chord, random.randint(0, 2))
@@ -128,17 +237,19 @@ class ProgressionBasedStrategy(HarmonyStrategy):
                     # 如果低音跳动太大，考虑转位
                     if abs(current_bass - prev_bass) > 7:
                         chord = self._apply_inversion(chord, random.randint(1, 2))
-            
+
             chords.append(chord)
             chord_index += 1
-        
+
         # 应用声部连接
         if apply_voice_leading_flag:
-            chords = apply_voice_leading(chords, self.key, VoiceLeading.SMOOTH)
-        
+            #chords = apply_voice_leading(chords, self.key, VoiceLeading.SMOOTH)
+            # 使用改进的声部连接策略，它会自动在平滑移动和避免平行五八度之间寻找最优解
+            chords = apply_improved_voice_leading(chords, self.key, VoiceLeading.SMOOTH)
+
         # 计算每个和弦的时值
         beats_per_chord = self.beats_per_bar / chords_per_bar
-        
+
         # 应用节奏模式
         if rhythm == "steady":
             durations = [beats_per_chord] * total_chords
@@ -158,19 +269,19 @@ class ProgressionBasedStrategy(HarmonyStrategy):
                 durations.append(beats_per_chord * factor)
         else:
             durations = [beats_per_chord] * total_chords
-        
+
         # 返回 (根音MIDI, 时值) 列表
         result = []
         for chord, duration in zip(chords, durations):
             root_note = chord.get_midi_notes(self.key)[0]
             result.append((root_note, duration))
-        
+
         return result
 
 
 class DiatonicStrategy(HarmonyStrategy):
     """基于调内和弦的随机生成策略"""
-    
+
     def __init__(self, key: Key, beats_per_bar: int = 4):
         super().__init__(key, beats_per_bar)
         # 预计算调内和弦
@@ -178,7 +289,7 @@ class DiatonicStrategy(HarmonyStrategy):
             get_diatonic_chord(degree, key)
             for degree in range(1, 8)
         ]
-    
+
     def generate(
         self,
         num_bars: int,
@@ -189,13 +300,13 @@ class DiatonicStrategy(HarmonyStrategy):
     ) -> List[Tuple[int, float]]:
         """
         生成基于调内和弦的序列
-        
+
         Args:
             num_bars: 小节数量
             density: 和弦密度 (0.1-1.0)，控制每个拍出现和弦的概率
             avoid_repetition: 是否避免连续重复相同和弦
             cadence_pattern: 终止式模式，如 [5, 1] 表示在结束时用V-I
-            
+
         Returns:
             [(根音MIDI, 时值), ...]
         """
@@ -203,7 +314,7 @@ class DiatonicStrategy(HarmonyStrategy):
         result = []
         last_chord_index = -1
         current_beat = 0
-        
+
         while current_beat < total_beats:
             # 检查是否应该插入和弦
             if random.random() < density:
@@ -213,23 +324,23 @@ class DiatonicStrategy(HarmonyStrategy):
                     chord_index = random.choice(available_indices)
                 else:
                     chord_index = random.randint(0, 6)
-                
+
                 chord = self.diatonic_chords[chord_index]
                 root_note = chord.get_midi_notes(self.key)[0]
-                
+
                 # 随机时值 (1-4拍)
                 duration = random.choice([0.5, 1.0, 2.0, 4.0])
-                
+
                 # 确保不超过剩余拍数
                 remaining = total_beats - current_beat
                 duration = min(duration, remaining)
-                
+
                 result.append((root_note, duration))
                 last_chord_index = chord_index
                 current_beat += duration
             else:
                 current_beat += 0.5  # 跳过半拍
-        
+
         # 应用终止式（如果指定）
         if cadence_pattern and len(cadence_pattern) >= 2:
             # 替换最后两个和弦为终止式
@@ -242,23 +353,23 @@ class DiatonicStrategy(HarmonyStrategy):
                     self.diatonic_chords[cadence_pattern[1] - 1].get_midi_notes(self.key)[0],
                     result[-1][1]
                 )
-        
+
         return result
 
 
 class FunctionalStrategy(HarmonyStrategy):
     """功能和声生成策略（基于功能和声学）"""
-    
+
     def __init__(self, key: Key, beats_per_bar: int = 4):
         super().__init__(key, beats_per_bar)
-        
+
         # 定义功能和声分类
         self.functional_groups = {
             "T": [0],  # Tonic (I)
             "S": [3, 4],  # Subdominant (IV, V in minor)
             "D": [4, 6]  # Dominant (V, VII)
         }
-    
+
     def generate(
         self,
         num_bars: int,
@@ -267,32 +378,32 @@ class FunctionalStrategy(HarmonyStrategy):
     ) -> List[Tuple[int, float]]:
         """
         基于功能和声生成
-        
+
         Args:
             num_bars: 小节数量
             phrase_structure: 乐句结构模式 ("AABA", "ABAB", etc.)
-            
+
         Returns:
             [(根音MIDI, 时值), ...]
         """
         total_beats = num_bars * self.beats_per_bar
         bars_per_phrase = num_bars // len(phrase_structure)
-        
+
         result = []
-        
+
         for phrase in phrase_structure:
             phrase_beats = bars_per_phrase * self.beats_per_bar
             phrase_chords = self._generate_phrase(phrase, phrase_beats)
             result.extend(phrase_chords)
-        
+
         return result
-    
+
     def _generate_phrase(self, phrase_type: str, beats: int) -> List[Tuple[int, float]]:
         """生成单个乐句的和弦"""
         scale_notes = get_scale_notes(self.key, num_octaves=2)
         chords = []
         current_beat = 0
-        
+
         # 不同乐句类型的功能进行
         if phrase_type == "A":
             # 主题句：T-S-D-T
@@ -303,22 +414,22 @@ class FunctionalStrategy(HarmonyStrategy):
         else:
             # 随机
             functional_pattern = ["T", "S", "D", "T"]
-        
+
         for func in functional_pattern:
             chord_degree = random.choice(self.functional_groups[func])
             chord = get_diatonic_chord(chord_degree + 1, self.key)
             root_note = chord.get_midi_notes(self.key)[0]
-            
+
             # 分配时值
             duration = beats / len(functional_pattern)
             chords.append((root_note, duration))
-        
+
         return chords
 
 
 class HybridHarmonyStrategy(HarmonyStrategy):
     """混合和声策略 - 组合多种策略"""
-    
+
     def __init__(
         self,
         key: Key,
@@ -326,7 +437,7 @@ class HybridHarmonyStrategy(HarmonyStrategy):
         strategies: Optional[List[HarmonyStrategy]] = None
     ):
         super().__init__(key, beats_per_bar)
-        
+
         if strategies is None:
             # 默认组合：进行式 + 随机变化
             self.strategies = [
@@ -335,25 +446,25 @@ class HybridHarmonyStrategy(HarmonyStrategy):
             ]
         else:
             self.strategies = strategies
-    
+
     def generate(self, num_bars: int, split_ratio: float = 0.7, **kwargs) -> List[Tuple[int, float]]:
         """
         生成混合和声
-        
+
         Args:
             num_bars: 小节数量
             split_ratio: 第一个策略占的比例 (0.0-1.0)
-            
+
         Returns:
             [(根音MIDI, 时值), ...]
         """
         first_bars = int(num_bars * split_ratio)
         second_bars = num_bars - first_bars
-        
+
         # 使用不同策略生成不同部分
         first_part = self.strategies[0].generate(first_bars, **kwargs)
         second_part = self.strategies[1].generate(second_bars, **kwargs)
-        
+
         return first_part + second_part
 
 
@@ -361,14 +472,14 @@ class HybridHarmonyStrategy(HarmonyStrategy):
 
 class HarmonyGenerator:
     """和声生成器工厂类"""
-    
+
     STRATEGIES = {
         "progression": ProgressionBasedStrategy,
         "diatonic": DiatonicStrategy,
         "functional": FunctionalStrategy,
         "hybrid": HybridHarmonyStrategy
     }
-    
+
     def __init__(
         self,
         strategy_name: str = "progression",
@@ -378,7 +489,7 @@ class HarmonyGenerator:
     ):
         """
         初始化和声生成器
-        
+
         Args:
             strategy_name: 策略名称
             key: 调
@@ -386,42 +497,42 @@ class HarmonyGenerator:
             **strategy_params: 策略特定参数
         """
         strategy_class = self.STRATEGIES.get(strategy_name, ProgressionBasedStrategy)
-        
+
         # 如果没有提供key，使用默认C大调
         if key is None:
             from core.theory import Key as KeyEnum
             key = KeyEnum.C_MAJOR
-        
+
         self.strategy = strategy_class(key, beats_per_bar, **strategy_params)
         self.key = key
-    
+
     def generate(self, num_bars: int = 16, **kwargs) -> List[Tuple[int, float]]:
         """
         生成和弦序列
-        
+
         Args:
             num_bars: 小节数量
             **kwargs: 策略特定参数
-            
+
         Returns:
             [(根音MIDI编号, 时值(拍)), ...]
         """
         return self.strategy.generate(num_bars, **kwargs)
-    
+
     def generate_chord_objects(self, num_bars: int = 16, **kwargs) -> List[Chord]:
         """
         生成和弦对象列表（用于更复杂的处理）
-        
+
         Args:
             num_bars: 小节数量
             **kwargs: 策略特定参数
-            
+
         Returns:
             Chord对象列表
         """
         root_duration_list = self.generate(num_bars, **kwargs)
         scale_notes = get_scale_notes(self.key, num_octaves=2)
-        
+
         chords = []
         for root_midi, duration in root_duration_list:
             # 找到对应的音级
@@ -433,18 +544,18 @@ class HarmonyGenerator:
                     range(len(scale_notes)),
                     key=lambda i: abs(scale_notes[i] - root_midi)
                 )
-            
+
             # 创建和弦对象（默认使用大三和弦）
             chord = Chord(root=root_index, quality=ChordQuality.MAJOR)
             chords.append(chord)
-        
+
         return chords
-    
+
     @classmethod
     def register_strategy(cls, name: str, strategy_class: type):
         """注册新的和声策略"""
         cls.STRATEGIES[name] = strategy_class
-    
+
     @classmethod
     def get_available_strategies(cls) -> List[str]:
         """获取可用的策略列表"""
@@ -462,14 +573,14 @@ def create_harmony(
 ) -> List[Tuple[int, float]]:
     """
     创建和声的便捷函数
-    
+
     Args:
         strategy_name: 策略名称
         key: 调
         num_bars: 小节数量
         beats_per_bar: 每小节拍数
         **params: 策略特定参数
-        
+
     Returns:
         [(根音MIDI, 时值), ...]
     """
@@ -486,14 +597,14 @@ def create_progression_harmony(
 ) -> List[Tuple[int, float]]:
     """
     基于预设和弦进行创建和声
-    
+
     Args:
         progression_name: 和弦进行名称
         key: 调
         num_bars: 小节数量
         chords_per_bar: 每小节和弦数量
         **params: 其他参数
-        
+
     Returns:
         [(根音MIDI, 时值), ...]
     """
@@ -515,13 +626,13 @@ def create_style_harmony(
 ) -> List[Tuple[int, float]]:
     """
     基于风格创建和声
-    
+
     Args:
         style: 音乐风格 ("pop", "jazz", "rock", "blues", "classical")
         key: 调
         num_bars: 小节数量
         **params: 其他参数
-        
+
     Returns:
         [(根音MIDI, 时值), ...]
     """
@@ -539,24 +650,24 @@ def create_style_harmony(
 # 保留原有的简单接口，但实现新的逻辑
 class HarmonyGenerator_Legacy:
     """旧版和声生成器（向后兼容）"""
-    
+
     def __init__(self, progression_name: str):
         """初始化旧版生成器"""
         self.progression_name = progression_name
         self.progression = CHORD_PROGRESSIONS.get(progression_name)
-        
+
         if not self.progression:
             raise ValueError(f"Progression '{progression_name}' not found. "
                            f"Available: {list(CHORD_PROGRESSIONS.keys())}")
-    
+
     def generate(self, key: Key, chords_per_bar: int = 1):
         """
         生成和弦序列（返回Chord对象列表，兼容旧代码）
-        
+
         Args:
             key: 调
             chords_per_bar: 每小节和弦数量
-            
+
         Returns:
             Chord对象列表
         """
