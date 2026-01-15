@@ -4,12 +4,14 @@
     "melody": {
         "strategy": "structured",
         "velocity_curve": "flat",
-        "variation": 0.5
+        "variation": 0.5,
+        "motif_length": 4
     },
     "harmony": {
         "progression": "rock_basic",
         "voicing": "close",
-        "power_chords": true
+        "power_chords": true,
+        "apply_voice_leading": true
     },
     "rhythm": {
         "pattern": "rock_beat",
@@ -18,7 +20,11 @@
     },
     "structure": {
         "bars": 16,
-        "sections": ["intro", "verse", "chorus"],
+        "sections": [
+            "intro",
+            "verse",
+            "chorus"
+        ],
         "form": "ABAB"
     },
     "arrangement": {

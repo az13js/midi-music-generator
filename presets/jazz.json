@@ -5,7 +5,8 @@
         "strategy": "random",
         "velocity_curve": "rising",
         "use_chord_tones": true,
-        "chromatic_probability": 0.15
+        "chromatic_probability": 0.15,
+        "motif_length": 4
     },
     "harmony": {
         "progression": "jazz_251",
@@ -20,7 +21,11 @@
     },
     "structure": {
         "bars": 32,
-        "sections": ["head", "solo", "head"],
+        "sections": [
+            "head",
+            "solo",
+            "head"
+        ],
         "form": "AABA"
     },
     "arrangement": {

@@ -4,11 +4,13 @@
     "melody": {
         "strategy": "random",
         "velocity_curve": "flat",
-        "chromatic_probability": 0.2
+        "chromatic_probability": 0.2,
+        "motif_length": 4
     },
     "harmony": {
         "progression": "blues_basic",
-        "voicing": "close"
+        "voicing": "close",
+        "apply_voice_leading": true
     },
     "rhythm": {
         "pattern": "syncopated_16",
@@ -16,7 +18,10 @@
     },
     "structure": {
         "bars": 12,
-        "sections": ["verse", "chorus"]
+        "sections": [
+            "verse",
+            "chorus"
+        ]
     },
     "arrangement": {
         "include_bass": true
