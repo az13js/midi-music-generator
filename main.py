@@ -30,46 +30,6 @@ class PrecomputedGenerator:
     def generate(self, key: Key):
         return self.data
 
-def expand_harmony_to_arpeggio(
-    harmony_gen: HarmonyGenerator,
-    key: Key,
-    voicing: str = "close"
-) -> List[Tuple[int, float, int]]:
-    """
-    将和声扩展为琶音。
-    根据 HarmonyGenerator 内部存储的 Progression 信息，
-    动态构建和弦（支持三和弦、七和弦等）。
-    """
-    result = []
-
-    # 1. 获取根音和时值
-    # 注意：为了获取时值，我们调用 generate
-    roots_durations = harmony_gen.generate(num_bars=16) # 这里的bars会被外部覆盖，但这里需要先获取对象数据结构
-    # 实际上，为了简单起见，我们重新调用一次以获取当前配置的数据
-
-    # 更好的方式：直接读取生成器的配置
-    # 由于 HarmonyGenerator 内部可能持有 progression 对象，我们可以利用它
-    # 这里我们需要重新生成一次以确保数据是同步的
-    # 假设 harmony_gen 已经配置好了 num_bars
-
-    # 我们需要一种方法同时获取 Chord 信息和 Duration 信息
-    # 由于现有的 HarmonyGenerator.generate() 只返回 (root, duration)，
-    # 我们稍微 hack 一下，假设 chord 的顺序和 progression 的循环是对应的。
-
-    # 获取和弦序列对象列表 (如果没有直接接口，我们利用 progression 重建)
-    # 在 ProgressionBasedStrategy 中，self.progression 是可用的
-
-    strategy = harmony_gen.strategy
-    num_bars = 16 # 默认值，实际应该在调用时传入，这里为了演示逻辑
-
-    # 我们在 main 函数调用时会传入正确的 num_bars，这里主要处理逻辑
-    # 因此这个函数改为在 main 中处理可能更好，但为了保持结构，我们假设它是 main 的一部分逻辑
-
-    # 为了解决丢失 ChordQuality 信息的问题，我们在 main.py 中直接操作 Chord 对象
-    pass
-
-# 将扩展逻辑移到 main 函数内部以便访问完整的上下文
-
 def main():
     parser = argparse.ArgumentParser(description="MIDI Music Generator CLI")
     parser.add_argument("--preset", default="pop", help="Preset name (e.g., pop, jazz, rock)")
