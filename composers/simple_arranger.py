@@ -1,5 +1,6 @@
 from mido import MidiFile, MidiTrack, MetaMessage, Message
 from core.theory import Key
+import random
 
 class SimpleArranger:
     def __init__(self, tempo: int, key: Key):
@@ -26,7 +27,12 @@ class SimpleArranger:
 
     def _get_note_duration_ticks(self, duration_beats: float) -> int:
         """将拍数转换为 ticks"""
-        return int(duration_beats * self.ticks_per_beat)
+        # 基础时长
+        ticks = int(duration_beats * self.ticks_per_beat)
+        # 添加微小的随机偏移（人性化）
+        # 随机让音符长度变化 ±5%
+        variation = int(ticks * 0.05 * (random.random() - 0.5))
+        return max(1, ticks + variation)  # 确保至少1 tick
 
     def add_track(self, name: str, generator, channel: int):
         """

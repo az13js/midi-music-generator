@@ -2,12 +2,12 @@
     "tempo": 128,
     "key": "C_MINOR",
     "melody": {
-        "strategy": "random",
+        "strategy": "genetic",
         "velocity_curve": "flat"
     },
     "harmony": {
         "progression": "modern_trending",
-        "voicing": "close"
+        "voicing": "open"
     },
     "rhythm": {
         "pattern": "techno"
