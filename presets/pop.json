@@ -3,11 +3,14 @@
     "key": "C_MAJOR",
     "melody": {
         "strategy": "structured",
-        "velocity_curve": "arch"
+        "velocity_curve": "arch",
+        "program": 73 
     },
     "harmony": {
         "progression": "pop_basic",
-        "voicing": "close"
+        "voicing": "close",
+        "program": 0,
+        "bass_program": 33
     },
     "rhythm": {
         "pattern": "steady",

@@ -60,18 +60,23 @@ class SimpleArranger:
             # 尾声渐弱
             return 1.2 - ((progress - 0.90) / 0.10) * 0.5
 
-    def add_track(self, name: str, generator, channel: int):
+    def add_track(self, name: str, generator, channel: int, program: int = 0):
         """
         动态添加音轨
         :param name: 音轨名称
         :param generator: 生成器实例，必须实现 generate(key) 方法
         :param channel: MIDI 通道号 (0-15)
+        :param program: GM音色编号 (0-127)，默认为0 (Acoustic Grand Piano)
         """
         track = MidiTrack()
         self.mid.tracks.append(track)
 
         # 添加音轨名称
         track.append(MetaMessage('track_name', name=name))
+
+        # 设置音色 (Program Change)
+        # 注意：time=0 表示紧随前面的消息立即发送
+        track.append(Message('program_change', program=program, time=0, channel=channel))
 
         # 获取音符数据
         notes_data = generator.generate(self.key)

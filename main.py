@@ -347,8 +347,17 @@ def main():
         logger.debug(f"  旋律音域: {min(m[0] for m in melody_data)} - {max(m[0] for m in melody_data)}")
         logger.debug(f"  力度范围: {min(m[2] for m in melody_data)} - {max(m[2] for m in melody_data)}")
 
+        # 音色读取，默认为 0 (钢琴)
+        melody_program = melody_cfg.get("program", 0)
+        logger.debug(f"  旋律音色 (Program): {melody_program}")
+
         # 添加到编曲器
-        arranger.add_track(name="Melody", generator=PrecomputedGenerator(melody_data, "Melody"), channel=0)
+        arranger.add_track(
+            name="Melody", 
+            generator=PrecomputedGenerator(melody_data, "Melody"), 
+            channel=0, 
+            program=melody_program
+        )
 
     # ==================== 和声轨道 ====================
     if "harmony" in preset:
@@ -429,12 +438,22 @@ def main():
         logger.info(f"  ✓ 和声生成完成: {len(arpeggio_data)} 音符")
         logger.debug(f"  和弦音域: {min(m[0] for m in arpeggio_data)} - {max(m[0] for m in arpeggio_data)}")
 
+        # 音色读取，默认为 0 (钢琴)
+        harmony_program = harmony_cfg.get("program", 0)
+        logger.debug(f"  和声音色 (Program): {harmony_program}")
+
         # 添加到编曲器
-        arranger.add_track(name="Harmony", generator=PrecomputedGenerator(arpeggio_data, "Harmony"), channel=1)
+        arranger.add_track(
+            name="Harmony", 
+            generator=PrecomputedGenerator(arpeggio_data, "Harmony"), 
+            channel=1, 
+            program=harmony_program
+        )
 
     # ==================== 低音轨道 ====================
     if "harmony" in preset:
         logger.info("\n[3/3] 生成低音轨道...")
+        harmony_cfg = preset["harmony"]
 
         bass_gen = HarmonyGenerator(
             strategy_name="progression",
@@ -461,7 +480,16 @@ def main():
         logger.info(f"  ✓ 低音生成完成: {len(bass_data)} 音符")
         logger.debug(f"  低音音域: {min(m[0] for m in bass_data)} - {max(m[0] for m in bass_data)}")
 
-        arranger.add_track(name="Bass", generator=PrecomputedGenerator(bass_data, "Bass"), channel=2)
+        # 低音音色读取，默认为 32 (Acoustic Bass)
+        bass_program = harmony_cfg.get("bass_program", 32)
+        logger.debug(f"  低音音色 (Program): {bass_program}")
+
+        arranger.add_track(
+            name="Bass", 
+            generator=PrecomputedGenerator(bass_data, "Bass"), 
+            channel=2, 
+            program=bass_program
+        )
 
     # ==================== 保存文件 ====================
     logger.info("\n保存 MIDI 文件...")
