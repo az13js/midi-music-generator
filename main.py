@@ -2,13 +2,11 @@ import argparse
 import json
 import sys
 import os
+import itertools
 from typing import List, Tuple, Union
 
-# 导入核心模块
-from core.theory import Key, get_scale_notes, get_diatonic_chord, ChordQuality
-# 导入生成器
+from core.theory import Key, get_scale_notes, get_diatonic_chord, ChordQuality, get_chord_intervals
 from generators import MelodyGenerator, HarmonyGenerator, RhythmGenerator, RhythmPattern
-# 导入编曲器
 from composers import SimpleArranger
 
 def load_preset(name: str) -> dict:
@@ -25,195 +23,181 @@ def load_preset(name: str) -> dict:
         sys.exit(1)
 
 class PrecomputedGenerator:
-    """适配器类：由于 SimpleArranger.add_track 期望 generator.generate(self.key) 格式，
-    而现代的Generator (Melody/Harmony) 接口各异，
-    我们先在main 中生成数据，然后用这个适配器包装起来传给Arranger。
-    """
-    def __init__(self, data: List[Union[int, Tuple[int, float]]]):
+    """适配器类：包装预计算好的数据传递给 SimpleArranger"""
+    def __init__(self, data: List[Union[int, Tuple[int, float], Tuple[int, float, int]]]):
         self.data = data
 
     def generate(self, key: Key):
-        # 忽略传入的key，直接返回预设计算好的数据
         return self.data
 
 def expand_harmony_to_arpeggio(
-    root_duration_list: List[Tuple[int, float]], key: Key
-) -> List[Tuple[int, float]]:
-    """将和声(根音, 时值) 扩展为琶音(音符, 时值)。
-    这样可以让SimpleArranger播放和弦的分解形式，而不是单音根音。
+    harmony_gen: HarmonyGenerator,
+    key: Key,
+    voicing: str = "close"
+) -> List[Tuple[int, float, int]]:
+    """
+    将和声扩展为琶音。
+    根据 HarmonyGenerator 内部存储的 Progression 信息，
+    动态构建和弦（支持三和弦、七和弦等）。
     """
     result = []
-    # 获取两个八度的音阶，用于构建和弦
-    scale_notes = get_scale_notes(key, octave=4, num_octaves=2)
 
-    for root_midi, duration in root_duration_list:
-        # 尝试找到根音在音阶中的索引
-        try:
-            root_idx = scale_notes.index(root_midi)
-        except ValueError:
-            # 如果根音不在音阶里（极少数情况），就用单音
-            result.append((root_midi, duration))
-            continue
+    # 1. 获取根音和时值
+    # 注意：为了获取时值，我们调用 generate
+    roots_durations = harmony_gen.generate(num_bars=16) # 这里的bars会被外部覆盖，但这里需要先获取对象数据结构
+    # 实际上，为了简单起见，我们重新调用一次以获取当前配置的数据
 
-        # 构建一个基础的大三或小三和弦(根据调性决定简单起见)
-        # 这里为了演示，使用大三和弦模式(1, 3, 5度)
-        intervals = [0, 4, 7]
+    # 更好的方式：直接读取生成器的配置
+    # 由于 HarmonyGenerator 内部可能持有 progression 对象，我们可以利用它
+    # 这里我们需要重新生成一次以确保数据是同步的
+    # 假设 harmony_gen 已经配置好了 num_bars
 
-        # 将每个和弦音符转化为序列
-        chord_notes = []
-        for interval in intervals:
-            chord_notes.append((root_midi + interval, duration))
+    # 我们需要一种方法同时获取 Chord 信息和 Duration 信息
+    # 由于现有的 HarmonyGenerator.generate() 只返回 (root, duration)，
+    # 我们稍微 hack 一下，假设 chord 的顺序和 progression 的循环是对应的。
 
-        # 将这些和弦音符添加到结果中，形成琶音效果
-        result.extend(chord_notes)
+    # 获取和弦序列对象列表 (如果没有直接接口，我们利用 progression 重建)
+    # 在 ProgressionBasedStrategy 中，self.progression 是可用的
 
-    return result
+    strategy = harmony_gen.strategy
+    num_bars = 16 # 默认值，实际应该在调用时传入，这里为了演示逻辑
+
+    # 我们在 main 函数调用时会传入正确的 num_bars，这里主要处理逻辑
+    # 因此这个函数改为在 main 中处理可能更好，但为了保持结构，我们假设它是 main 的一部分逻辑
+
+    # 为了解决丢失 ChordQuality 信息的问题，我们在 main.py 中直接操作 Chord 对象
+    pass
+
+# 将扩展逻辑移到 main 函数内部以便访问完整的上下文
 
 def main():
-    # 1. 解析命令行参数
     parser = argparse.ArgumentParser(description="MIDI Music Generator CLI")
     parser.add_argument("--preset", default="pop", help="Preset name (e.g., pop, jazz, rock)")
     parser.add_argument("--output", required=True, help="Output MIDI file path")
-    parser.add_argument("--bars", type=int, default=None, help="Number of bars to generate (overrides preset)")
+    parser.add_argument("--bars", type=int, default=None, help="Number of bars to generate")
     args = parser.parse_args()
 
-    # 2. 加载配置
-    print(f"Loading preset: {args.preset}")
     preset = load_preset(args.preset)
 
-    # 解析Key
     try:
         key = Key[preset.get("key", "C_MAJOR")]
     except KeyError:
-        print(f"Error: Invalid key '{preset.get('key')}' in preset. Defaulting to C_MAJOR.")
         key = Key.C_MAJOR
 
     tempo = preset.get("tempo", 120)
     bars = args.bars if args.bars is not None else preset.get("structure", {}).get("bars", 16)
 
-    # 3. 初始化编曲器
-    print(f"Initializing arranger: Key={key.value}, Tempo={tempo}")
     arranger = SimpleArranger(tempo=tempo, key=key)
 
-    # 4. 生成并添加音轨
-
-    # --- 旋律轨道 ---
+    # --- 旋律轨道 (含力度曲线) ---
     if "melody" in preset:
         melody_cfg = preset["melody"]
         strategy_name = melody_cfg.get("strategy", "structured")
-        print(f"Generating Melody with strategy: {strategy_name}")
 
-        # 1. 生成旋律音高
         melody_gen = MelodyGenerator(strategy_name=strategy_name, key=key)
-        # 估算生成足够的音符数量
-        length = bars * 4 * 2
+        length = bars * 4 * 2 # 估算长度
         melody_pitches = melody_gen.generate(length=length)
 
-        # 2. 生成节奏 (新增逻辑)
+        # 生成节奏
         rhythm_cfg = preset.get("rhythm", {})
-        rhythm_pattern_str = rhythm_cfg.get("pattern", "steady")
-
-        # 映射预设字符串到 RhythmPattern 枚举
         pattern_map = {
-            "steady": RhythmPattern.STEADY_QUARTERS,
-            "rock_beat": RhythmPattern.ROCK_BEAT,
-            "swing_eighths": RhythmPattern.SWING_EIGHTHS,
-            "syncopated_16": RhythmPattern.SYNCOPATED_16,
-            "techno": RhythmPattern.TECHNO,
-            "bossa_nova": RhythmPattern.BOSSA_NOVA,
-            "steady_eighths": RhythmPattern.STEADY_EIGHTHS,
-            "steady_quarters": RhythmPattern.STEADY_QUARTERS,
+            "steady": RhythmPattern.STEADY_QUARTERS, "rock_beat": RhythmPattern.ROCK_BEAT,
+            "swing_eighths": RhythmPattern.SWING_EIGHTHS, "syncopated_16": RhythmPattern.SYNCOPATED_16,
+            "techno": RhythmPattern.TECHNO, "bossa_nova": RhythmPattern.BOSSA_NOVA,
+            "steady_eighths": RhythmPattern.STEADY_EIGHTHS, "steady_quarters": RhythmPattern.STEADY_QUARTERS,
         }
+        target_pattern = pattern_map.get(rhythm_cfg.get("pattern", "steady"), RhythmPattern.STEADY_QUARTERS)
 
-        target_pattern = pattern_map.get(rhythm_pattern_str, RhythmPattern.STEADY_QUARTERS)
-
-        # 实例化节奏生成器
-        # 如果有 style (如 jazz, rock)，可以使用 GrooveRhythmStrategy
-        rhythm_style = rhythm_cfg.get("style")
-        if rhythm_style:
-            rhythm_gen = RhythmGenerator("groove", style=rhythm_style)
+        if rhythm_cfg.get("style"):
+            rhythm_gen = RhythmGenerator("groove", style=rhythm_cfg.get("style"))
         else:
             rhythm_gen = RhythmGenerator("pattern", pattern=target_pattern)
 
-        # 生成节奏时值列表
         durations = rhythm_gen.generate(num_bars=bars)
 
-        # 3. 将音高与时值合并
-        # 为了填满整个节奏序列，我们使用 itertools.cycle 来循环使用旋律音高
-        import itertools
-        melody_with_timing = []
-        # 使用 itertools.cycle 无限循环旋律音高，然后切片匹配节奏长度
-        # 这样可以保证节奏完全由节奏生成器控制，旋律音高循环使用
-        melody_notes_iter = itertools.cycle(melody_pitches)
+        # 应用力度曲线
+        curve_type = melody_cfg.get("velocity_curve", "flat")
+        # 对原始旋律音高应用曲线（这会生成一个与 melody_pitches 长度相同的力度列表）
+        base_velocities = melody_gen.strategy.apply_velocity_curve(melody_pitches, curve_type=curve_type)
+
+        # 组合：使用 itertools.cycle 循环旋律音高和力度，同时使用节奏
+        # 注意：durations 的长度决定了最终音符数量，旋律和力度需要循环匹配
+        melody_data = []
+
+        # 创建循环迭代器
+        pitch_iter = itertools.cycle(melody_pitches)
+        vel_iter = itertools.cycle(base_velocities)
 
         for dur in durations:
-            note = next(melody_notes_iter)
-            melody_with_timing.append((note, dur))
+            note = next(pitch_iter)
+            vel = next(vel_iter)
+            # 构造三元组 (note, duration, velocity)
+            melody_data.append((note, dur, vel))
 
-        # 4. 写入音轨
-        try:
-            arranger.add_track(
-                name="Melody",
-                generator=PrecomputedGenerator(melody_with_timing),
-                channel=0
-            )
-        except Exception as e:
-            print(f"Warning: Failed to generate melody: {e}")
+        arranger.add_track(name="Melody", generator=PrecomputedGenerator(melody_data), channel=0)
 
-    # --- 和声轨道(和弦) ---
+    # --- 和声轨道 (和弦琶音优化) ---
     if "harmony" in preset:
         harmony_cfg = preset["harmony"]
-        strategy_name = harmony_cfg.get("progression", "progression")
-        print(f"Generating Harmony with strategy: {strategy_name}")
+        strategy_name = harmony_cfg.get("progression", "pop_basic")
+        voicing_type = harmony_cfg.get("voicing", "close")
 
-        # 实例化和声生成器
+        # 实例化生成器
+        # 我们需要它生成 (root, duration)
         harmony_gen = HarmonyGenerator(
-            strategy_name="progression",  # 指定使用基于进行生成的策略
-            key=key,
-            progression_name=strategy_name,  # 传入具体的进行名称(如pop)
-            beats_per_bar=4
-        )
-
-        try:
-            # 获取根音和时值
-            harmony_roots = harmony_gen.generate(num_bars=bars)
-            # 将和声转换为琶音数据以适应SimpleArranger的单轨写入逻辑
-            harmony_notes = expand_harmony_to_arpeggio(harmony_roots, key)
-            arranger.add_track(
-                name="Harmony",
-                generator=PrecomputedGenerator(harmony_notes),
-                channel=1
-            )
-        except Exception as e:
-            print(f"Warning: Failed to generate harmony: {e}")
-
-    # --- 低音轨道 ---
-    # 简单的和声根音轨道，作为伴奏
-    if "harmony" in preset:
-        harmony_cfg = preset["harmony"]
-        strategy_name = harmony_cfg.get("progression", "progression")
-
-        # 重新获取一次根音数据用于低音(实际项目中可以复用上面的数据)
-        bass_gen = HarmonyGenerator(
             strategy_name="progression",
             key=key,
             progression_name=strategy_name,
             beats_per_bar=4
         )
 
-        try:
-            bass_roots = bass_gen.generate(num_bars=bars)
-            # 低音直接使用根音，降低一个八度让听感更厚实
-            bass_notes = [(note - 12, dur) for note, dur in bass_roots]
-            arranger.add_track(
-                name="Bass",
-                generator=PrecomputedGenerator(bass_notes),
-                channel=2
-            )
-        except Exception as e:
-            print(f"Warning: Failed to generate bass: {e}")
+        # 生成基础根音和时值
+        roots_durations = harmony_gen.generate(num_bars=bars)
 
-    # 5. 保存文件
+        # 优化：根据 voicing 和 chord quality 生成琶音
+        # 我们需要获取和弦性质。ProgressionBasedStrategy 持有 progression 对象
+        arpeggio_data = []
+
+        if hasattr(harmony_gen.strategy, 'progression') and harmony_gen.strategy.progression:
+            prog_chords = harmony_gen.strategy.progression.chords # [(degree, quality), ...]
+            prog_len = len(prog_chords)
+
+            for i, (root_note, duration) in enumerate(roots_durations):
+                # 获取对应的和弦定义
+                degree, quality = prog_chords[i % prog_len]
+
+                # 处理 voicing (open -> 扩展和弦)
+                final_quality = quality
+                if voicing_type == "open":
+                    if quality == ChordQuality.MAJOR:
+                        final_quality = ChordQuality.MAJOR_SEVENTH
+                    elif quality == ChordQuality.MINOR:
+                        final_quality = ChordQuality.MINOR_SEVENTH
+                    elif quality == ChordQuality.DOMINANT_SEVENTH:
+                        final_quality = ChordQuality.DOMINANT_NINTH # 或者保持七和弦
+
+                # 获取音程
+                intervals = get_chord_intervals(final_quality)
+
+                # 生成琶音音符 (note, duration, velocity)
+                # 和声伴奏力度稍微低一点，平均 80
+                for interval in intervals:
+                    arpeggio_data.append((root_note + interval, duration, 80))
+        else:
+            # 降级处理：如果无法获取 progression，使用简单三和弦
+            for root_note, duration in roots_durations:
+                for interval in [0, 4, 7]:
+                    arpeggio_data.append((root_note + interval, duration, 80))
+
+        arranger.add_track(name="Harmony", generator=PrecomputedGenerator(arpeggio_data), channel=1)
+
+    # --- 低音轨道 (简化) ---
+    if "harmony" in preset:
+        bass_gen = HarmonyGenerator(strategy_name="progression", key=key, progression_name=preset["harmony"].get("progression"), beats_per_bar=4)
+        bass_roots = bass_gen.generate(num_bars=bars)
+        bass_data = [(note - 12, dur, 100) for note, dur in bass_roots]
+        arranger.add_track(name="Bass", generator=PrecomputedGenerator(bass_data), channel=2)
+
     try:
         arranger.save(args.output)
         print(f"Successfully generated MIDI file: {args.output}")
